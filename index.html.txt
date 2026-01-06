@@ -2,13 +2,124 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Audiowalk – Test</title>
+  <title>Audiowalk</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-sA+qH0iMb6I76UjO1r4LvV0N0f8T6i5WkmCq2QTQH8k=" crossorigin=""/>
+
+  <style>
+    body, html { margin:0; padding:0; height:100%; font-family: Arial, sans-serif; }
+    #map { height: 70%; }
+    #startButton { padding: 10px 20px; font-size: 18px; margin: 10px; }
+    #status { margin: 10px; }
+  </style>
 </head>
 <body>
 
 <h1>Audiowalk</h1>
-<p>Wenn du das siehst, funktioniert GitHub Pages 🎉</p>
+<p>Bitte erlaube GPS und Audio. Tippe auf <strong>Start Walk</strong>, um zu beginnen.</p>
+<button id="startButton">Start Walk</button>
+<div id="status"></div>
+<div id="map"></div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-o9N1j7k8O0bT8YkY+8jq2XQyRjC3A0N2fVf1fS/otXI=" crossorigin=""></script>
+
+<script>
+let map, userMarker;
+let started = false;
+
+// Hier kommen deine Stationen rein
+// Später ersetzt du audio: "audio/datei.mp3" durch die echten Dateien
+const stations = [
+  {id:1, title:"Station 1", lat:52.5208, lon:13.4095, radius:30, audio:"audio/station1.mp3"},
+  {id:2, title:"Wegclip 1", lat:52.5210, lon:13.4100, radius:20, audio:"audio/weg1.mp3"},
+  {id:3, title:"Station 2", lat:52.5215, lon:13.4105, radius:30, audio:"audio/station2.mp3"},
+  {id:4, title:"Wegclip 2", lat:52.5220, lon:13.4110, radius:20, audio:"audio/weg2.mp3"},
+  {id:5, title:"Station 3", lat:52.5225, lon:13.4115, radius:30, audio:"audio/station3.mp3"},
+  {id:6, title:"Station 4", lat:52.5230, lon:13.4120, radius:30, audio:"audio/station4.mp3"},
+  {id:7, title:"Station 5", lat:52.5235, lon:13.4125, radius:30, audio:"audio/station5.mp3"},
+  {id:8, title:"Station 6", lat:52.5240, lon:13.4130, radius:30, audio:"audio/station6.mp3"}
+];
+
+// Status, welcher Audio gerade läuft
+let playedStations = new Set();
+
+const startWalk = () => {
+  if (started) return;
+  started = true;
+  document.getElementById('startButton').style.display = 'none';
+  document.getElementById('status').innerText = "Audiowalk gestartet. GPS wird gesucht...";
+
+  // Karte initialisieren
+  map = L.map('map').fitWorld();
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
+  // Marker für den Nutzer
+  userMarker = L.marker([0,0]).addTo(map);
+
+  // Stationen auf der Karte anzeigen
+  stations.forEach(s => {
+    L.circle([s.lat, s.lon], {radius: s.radius, color:'blue', fillOpacity:0.2}).addTo(map)
+      .bindPopup(s.title);
+  });
+
+  // GPS verfolgen
+  if (navigator.geolocation) {
+    navigator.geolocation.watchPosition(pos => {
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+      userMarker.setLatLng([lat, lon]);
+      map.setView([lat, lon], 17);
+
+      // Prüfen, ob wir in der Nähe einer Station sind
+      stations.forEach(s => {
+        if (!playedStations.has(s.id)) {
+          const distance = getDistance(lat, lon, s.lat, s.lon);
+          if (distance <= s.radius) {
+            playedStations.add(s.id);
+            playAudio(s.audio, s.title);
+          }
+        }
+      });
+
+    }, err => {
+      document.getElementById('status').innerText = "GPS nicht verfügbar: " + err.message;
+    }, {enableHighAccuracy:true, maximumAge:0, timeout:5000});
+  } else {
+    document.getElementById('status').innerText = "Geolocation wird von diesem Gerät nicht unterstützt.";
+  }
+};
+
+// Abstand in Metern berechnen
+function getDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371000; // Erdradius in m
+  const φ1 = lat1 * Math.PI/180;
+  const φ2 = lat2 * Math.PI/180;
+  const Δφ = (lat2-lat1) * Math.PI/180;
+  const Δλ = (lon2-lon1) * Math.PI/180;
+  const a = Math.sin(Δφ/2)*Math.sin(Δφ/2) +
+            Math.cos(φ1)*Math.cos(φ2) *
+            Math.sin(Δλ/2)*Math.sin(Δλ/2);
+  const c = 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R*c;
+}
+
+// Audio abspielen
+function playAudio(src, title){
+  document.getElementById('status').innerText = "Station erreicht: " + title;
+  const audio = new Audio(src);
+  audio.play().catch(e => console.log("Autoplay blockiert? Nutzer muss einmal tippen."));
+}
+
+// Button Event
+document.getElementById('startButton').addEventListener('click', startWalk);
+</script>
 
 </body>
 </html>
